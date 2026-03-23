@@ -1,0 +1,23 @@
+###### Requirements without Version Specifiers ######
+tensorflow
+opencv-python
+matplotlib
+numpy
+Pillow
+scipy
+webcolors
+
+# FastAPI API (Railway / production)
+fastapi
+uvicorn[standard]
+python-multipart
+cloudinary
+requests
+python-dotenv
+
+# Download SavedModels from Google Drive: python scripts/download_models.py
+gdown
+
+# Training scripts (models/train_module.py, models/training.py)
+scikit-learn
+pandas

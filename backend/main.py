@@ -1,3 +1,4 @@
+import scripts.download_models
 import os
 
 # Before TensorFlow loads (via py.recognition_module), reduce GPU-stub noise on CPU-only PCs.
@@ -9,7 +10,6 @@ import backend.cloudinary_config  # noqa: F401
 import shutil
 import tempfile
 import uuid
-
 import cloudinary.api
 import cloudinary.uploader
 import requests

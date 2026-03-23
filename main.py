@@ -1,5 +1,5 @@
-from pathlib import Path
 
+from pathlib import Path
 from outfit_recommender import OutfitRecommender
 
 _root = Path(__file__).resolve().parent

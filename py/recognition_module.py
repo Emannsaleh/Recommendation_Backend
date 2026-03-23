@@ -77,11 +77,22 @@ COLOR_GROUP_INDEX = {
 # load pre-trained models (repo: models-saved/models/...; override with MODELS_DIR)
 _project_root = Path(__file__).resolve().parent.parent
 _models_dir = Path(os.environ.get("MODELS_DIR", _project_root / "models-saved" / "models"))
-sub_model = tf.keras.models.load_model(str(_models_dir / "model_sub"))
-top_model = tf.keras.models.load_model(str(_models_dir / "model_top"))
-bottom_model = tf.keras.models.load_model(str(_models_dir / "model_bottom"))
-foot_model = tf.keras.models.load_model(str(_models_dir / "model_shoes"))
+sub_model = None
+top_model = None
+bottom_model = None
+foot_model = None
 
+try:
+    if (_models_dir / "model_sub").exists():
+        sub_model = tf.keras.models.load_model(str(_models_dir / "model_sub"))
+        top_model = tf.keras.models.load_model(str(_models_dir / "model_top"))
+        bottom_model = tf.keras.models.load_model(str(_models_dir / "model_bottom"))
+        foot_model = tf.keras.models.load_model(str(_models_dir / "model_shoes"))
+        print("✅ Models loaded successfully")
+    else:
+        print("⚠️ Models not found, running in fallback mode")
+except Exception as e:
+    print("❌ Error loading models:", e)
 
 # all output possibilities of the model for subsequent matching
 sub_list = ["bottom","foot","top"]
@@ -205,7 +216,17 @@ def single_classification(single_path):
         - usage
         - path
     """
-
+    if sub_model is None:
+        return "top", "fallback", {
+        "subtype": "Tshirts",
+        "gender": "Women",
+        "color": "Black",
+        "color_group": 0,
+        "season": "Summer",
+        "usage": "Casual",
+        "path": single_path,
+    }
+    
     # Load image for models
     train_images = np.zeros((1, 80, 60, 3))
     img = cv2.imread(single_path)

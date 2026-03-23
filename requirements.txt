@@ -5,7 +5,7 @@ matplotlib
 numpy
 Pillow
 scipy
-webcolors
+webcolors==1.13
 
 # FastAPI API (Railway / production)
 fastapi

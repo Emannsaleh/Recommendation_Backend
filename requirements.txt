@@ -1,6 +1,6 @@
 ###### Requirements without Version Specifiers ######
 tensorflow
-opencv-python
+opencv-python-headless
 matplotlib
 numpy
 Pillow

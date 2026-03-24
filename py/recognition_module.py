@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from threading import Lock
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
@@ -82,18 +83,43 @@ sub_model = None
 top_model = None
 bottom_model = None
 foot_model = None
+_models_loaded = False
+_models_load_attempted = False
+_models_lock = Lock()
 
-try:
-    if (_models_dir / "model_sub").exists():
-        sub_model = tf.keras.models.load_model(str(_models_dir / "model_sub"))
-        top_model = tf.keras.models.load_model(str(_models_dir / "model_top"))
-        bottom_model = tf.keras.models.load_model(str(_models_dir / "model_bottom"))
-        foot_model = tf.keras.models.load_model(str(_models_dir / "model_shoes"))
-        print("✅ Models loaded successfully")
-    else:
-        print("⚠️ Models not found, running in fallback mode")
-except Exception as e:
-    print("❌ Error loading models:", e)
+def _ensure_models_loaded():
+    """Load models once per process on first use."""
+    global sub_model, top_model, bottom_model, foot_model
+    global _models_loaded, _models_load_attempted
+
+    if _models_loaded:
+        return True
+
+    # Avoid repeating expensive load attempts after a failure.
+    if _models_load_attempted and not _models_loaded:
+        return False
+
+    with _models_lock:
+        if _models_loaded:
+            return True
+        if _models_load_attempted and not _models_loaded:
+            return False
+
+        _models_load_attempted = True
+        try:
+            if (_models_dir / "model_sub").exists():
+                sub_model = tf.keras.models.load_model(str(_models_dir / "model_sub"))
+                top_model = tf.keras.models.load_model(str(_models_dir / "model_top"))
+                bottom_model = tf.keras.models.load_model(str(_models_dir / "model_bottom"))
+                foot_model = tf.keras.models.load_model(str(_models_dir / "model_shoes"))
+                _models_loaded = True
+                print("✅ Models loaded successfully")
+                return True
+            print(f"⚠️ Models not found in: {_models_dir}, running in fallback mode")
+            return False
+        except Exception as e:
+            print("❌ Error loading models:", e)
+            return False
 
 # all output possibilities of the model for subsequent matching
 sub_list = ["bottom","foot","top"]
@@ -217,7 +243,7 @@ def single_classification(single_path):
         - usage
         - path
     """
-    if sub_model is None:
+    if not _ensure_models_loaded() or sub_model is None:
         return "top", "fallback", {
         "subtype": "Tshirts",
         "gender": "Women",

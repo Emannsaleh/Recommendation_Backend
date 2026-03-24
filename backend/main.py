@@ -1,7 +1,3 @@
-from scripts.download_models import download_models
-
-download_models()
-
 import os
 
 # Before TensorFlow loads (via py.recognition_module), reduce GPU-stub noise on CPU-only PCs.

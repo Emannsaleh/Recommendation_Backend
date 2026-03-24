@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from threading import Lock
+import gc
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
@@ -79,6 +80,7 @@ COLOR_GROUP_INDEX = {
 # load pre-trained models (repo: models-saved/models/...; override with MODELS_DIR)
 _project_root = Path(__file__).resolve().parent.parent
 _models_dir = Path(os.environ.get("MODELS_DIR", _project_root / "models-saved" / "models"))
+_cache_models = os.environ.get("CACHE_MODELS", "0").strip().lower() in ("1", "true", "yes")
 sub_model = None
 top_model = None
 bottom_model = None
@@ -88,7 +90,7 @@ _models_lock = Lock()
 _models_last_error = ""
 
 def _ensure_models_loaded():
-    """Load only the subtype model once per process on first use."""
+    """Validate/load models depending on memory mode."""
     global sub_model
     global _models_loaded, _models_last_error
 
@@ -101,10 +103,13 @@ def _ensure_models_loaded():
 
         try:
             if (_models_dir / "model_sub").exists():
-                sub_model = tf.keras.models.load_model(str(_models_dir / "model_sub"))
+                if _cache_models:
+                    sub_model = tf.keras.models.load_model(str(_models_dir / "model_sub"))
+                    print("✅ Sub model loaded successfully")
+                else:
+                    print("✅ Models path verified (low-memory mode)")
                 _models_loaded = True
                 _models_last_error = ""
-                print("✅ Sub model loaded successfully")
                 return True
             _models_last_error = f"Models not found in: {_models_dir}"
             print(f"⚠️ {_models_last_error}, running in fallback mode")
@@ -124,6 +129,13 @@ def _get_task_model(task: str):
 
     with _models_lock:
         try:
+            if not _cache_models:
+                if task == "top":
+                    return tf.keras.models.load_model(str(_models_dir / "model_top"))
+                if task == "bottom":
+                    return tf.keras.models.load_model(str(_models_dir / "model_bottom"))
+                return tf.keras.models.load_model(str(_models_dir / "model_shoes"))
+
             if task == "top":
                 if top_model is None:
                     top_model = tf.keras.models.load_model(str(_models_dir / "model_top"))
@@ -168,6 +180,7 @@ def get_model_status():
             "bottom_model": bottom_model is not None,
             "foot_model": foot_model is not None,
         },
+        "cache_models": _cache_models,
         "last_error": _models_last_error,
     }
     return status
@@ -320,11 +333,34 @@ def single_classification(single_path):
     # -----------------------
     # Predict subtype (top/bottom/foot)
     # -----------------------
-    result2 = sub_list[np.argmax(sub_model.predict(train_images))]
+    if _cache_models:
+        result2 = sub_list[np.argmax(sub_model.predict(train_images))]
+    else:
+        temp_sub_model = None
+        try:
+            temp_sub_model = tf.keras.models.load_model(str(_models_dir / "model_sub"))
+            result2 = sub_list[np.argmax(temp_sub_model.predict(train_images))]
+        except Exception as e:
+            print("❌ Error loading sub model:", e)
+            return "top", "fallback", {
+                "subtype": "Tshirts",
+                "gender": "Women",
+                "color": "Black",
+                "color_group": 0,
+                "season": "Summer",
+                "usage": "Casual",
+                "path": single_path,
+            }
+        finally:
+            if temp_sub_model is not None:
+                del temp_sub_model
+            tf.keras.backend.clear_session()
+            gc.collect()
 
     # -----------------------
     # Predict full attributes
     # -----------------------
+    task_model = None
     if result2 == "top":
         task_model = _get_task_model("top")
         if task_model is None:
@@ -377,6 +413,11 @@ def single_classification(single_path):
                 "path": single_path,
             }
         res = single_helper(train_images, task_model, foot_list)
+
+    if not _cache_models:
+        del task_model
+        tf.keras.backend.clear_session()
+        gc.collect()
 
     # Add image path
     res.append(single_path)

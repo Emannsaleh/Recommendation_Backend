@@ -307,16 +307,8 @@ def single_classification(single_path):
         - usage
         - path
     """
-    if not _ensure_models_loaded() or sub_model is None:
-        return "top", "fallback", {
-        "subtype": "Tshirts",
-        "gender": "Women",
-        "color": "Black",
-        "color_group": 0,
-        "season": "Summer",
-        "usage": "Casual",
-        "path": single_path,
-    }
+    if not _ensure_models_loaded():
+        raise RuntimeError(f"Model load failed: {get_model_status()}")
     
     # Load image for models
     train_images = np.zeros((1, 80, 60, 3))
@@ -342,15 +334,7 @@ def single_classification(single_path):
             result2 = sub_list[np.argmax(temp_sub_model.predict(train_images))]
         except Exception as e:
             print("❌ Error loading sub model:", e)
-            return "top", "fallback", {
-                "subtype": "Tshirts",
-                "gender": "Women",
-                "color": "Black",
-                "color_group": 0,
-                "season": "Summer",
-                "usage": "Casual",
-                "path": single_path,
-            }
+            raise RuntimeError(f"Sub-model inference failed: {e}")
         finally:
             if temp_sub_model is not None:
                 del temp_sub_model
@@ -364,54 +348,22 @@ def single_classification(single_path):
     if result2 == "top":
         task_model = _get_task_model("top")
         if task_model is None:
-            return "top", "fallback", {
-                "subtype": "Tshirts",
-                "gender": "Women",
-                "color": "Black",
-                "color_group": 0,
-                "season": "Summer",
-                "usage": "Casual",
-                "path": single_path,
-            }
+            raise RuntimeError(f"Top model load failed: {get_model_status()}")
         res = single_helper(train_images, task_model, top_list)
     elif result2 == "bottom":
         task_model = _get_task_model("bottom")
         if task_model is None:
-            return "top", "fallback", {
-                "subtype": "Tshirts",
-                "gender": "Women",
-                "color": "Black",
-                "color_group": 0,
-                "season": "Summer",
-                "usage": "Casual",
-                "path": single_path,
-            }
+            raise RuntimeError(f"Bottom model load failed: {get_model_status()}")
         res = single_helper(train_images, task_model, bottom_list)
     elif result2 == "foot":
         task_model = _get_task_model("foot")
         if task_model is None:
-            return "top", "fallback", {
-                "subtype": "Tshirts",
-                "gender": "Women",
-                "color": "Black",
-                "color_group": 0,
-                "season": "Summer",
-                "usage": "Casual",
-                "path": single_path,
-            }
+            raise RuntimeError(f"Shoes model load failed: {get_model_status()}")
         res = single_helper(train_images, task_model, foot_list)
     else:
         task_model = _get_task_model("foot")
         if task_model is None:
-            return "top", "fallback", {
-                "subtype": "Tshirts",
-                "gender": "Women",
-                "color": "Black",
-                "color_group": 0,
-                "season": "Summer",
-                "usage": "Casual",
-                "path": single_path,
-            }
+            raise RuntimeError(f"Default shoes model load failed: {get_model_status()}")
         res = single_helper(train_images, task_model, foot_list)
 
     if not _cache_models:

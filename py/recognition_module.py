@@ -88,8 +88,8 @@ _models_lock = Lock()
 _models_last_error = ""
 
 def _ensure_models_loaded():
-    """Load models once per process on first use."""
-    global sub_model, top_model, bottom_model, foot_model
+    """Load only the subtype model once per process on first use."""
+    global sub_model
     global _models_loaded, _models_last_error
 
     if _models_loaded:
@@ -102,12 +102,9 @@ def _ensure_models_loaded():
         try:
             if (_models_dir / "model_sub").exists():
                 sub_model = tf.keras.models.load_model(str(_models_dir / "model_sub"))
-                top_model = tf.keras.models.load_model(str(_models_dir / "model_top"))
-                bottom_model = tf.keras.models.load_model(str(_models_dir / "model_bottom"))
-                foot_model = tf.keras.models.load_model(str(_models_dir / "model_shoes"))
                 _models_loaded = True
                 _models_last_error = ""
-                print("✅ Models loaded successfully")
+                print("✅ Sub model loaded successfully")
                 return True
             _models_last_error = f"Models not found in: {_models_dir}"
             print(f"⚠️ {_models_last_error}, running in fallback mode")
@@ -116,6 +113,40 @@ def _ensure_models_loaded():
             _models_last_error = str(e)
             print("❌ Error loading models:", e)
             return False
+
+
+def _get_task_model(task: str):
+    """
+    Lazily load task-specific model and keep only one in memory at a time
+    to reduce RAM usage on small instances.
+    """
+    global top_model, bottom_model, foot_model, _models_last_error
+
+    with _models_lock:
+        try:
+            if task == "top":
+                if top_model is None:
+                    top_model = tf.keras.models.load_model(str(_models_dir / "model_top"))
+                bottom_model = None
+                foot_model = None
+                return top_model
+            if task == "bottom":
+                if bottom_model is None:
+                    bottom_model = tf.keras.models.load_model(str(_models_dir / "model_bottom"))
+                top_model = None
+                foot_model = None
+                return bottom_model
+
+            # foot
+            if foot_model is None:
+                foot_model = tf.keras.models.load_model(str(_models_dir / "model_shoes"))
+            top_model = None
+            bottom_model = None
+            return foot_model
+        except Exception as e:
+            _models_last_error = str(e)
+            print("❌ Error loading task model:", e)
+            return None
 
 
 def get_model_status():
@@ -130,6 +161,12 @@ def get_model_status():
             "model_top": (_models_dir / "model_top").exists(),
             "model_bottom": (_models_dir / "model_bottom").exists(),
             "model_shoes": (_models_dir / "model_shoes").exists(),
+        },
+        "in_memory": {
+            "sub_model": sub_model is not None,
+            "top_model": top_model is not None,
+            "bottom_model": bottom_model is not None,
+            "foot_model": foot_model is not None,
         },
         "last_error": _models_last_error,
     }
@@ -289,13 +326,57 @@ def single_classification(single_path):
     # Predict full attributes
     # -----------------------
     if result2 == "top":
-        res = single_helper(train_images, top_model, top_list)
+        task_model = _get_task_model("top")
+        if task_model is None:
+            return "top", "fallback", {
+                "subtype": "Tshirts",
+                "gender": "Women",
+                "color": "Black",
+                "color_group": 0,
+                "season": "Summer",
+                "usage": "Casual",
+                "path": single_path,
+            }
+        res = single_helper(train_images, task_model, top_list)
     elif result2 == "bottom":
-        res = single_helper(train_images, bottom_model, bottom_list)
+        task_model = _get_task_model("bottom")
+        if task_model is None:
+            return "top", "fallback", {
+                "subtype": "Tshirts",
+                "gender": "Women",
+                "color": "Black",
+                "color_group": 0,
+                "season": "Summer",
+                "usage": "Casual",
+                "path": single_path,
+            }
+        res = single_helper(train_images, task_model, bottom_list)
     elif result2 == "foot":
-        res = single_helper(train_images, foot_model, foot_list)
+        task_model = _get_task_model("foot")
+        if task_model is None:
+            return "top", "fallback", {
+                "subtype": "Tshirts",
+                "gender": "Women",
+                "color": "Black",
+                "color_group": 0,
+                "season": "Summer",
+                "usage": "Casual",
+                "path": single_path,
+            }
+        res = single_helper(train_images, task_model, foot_list)
     else:
-        res = single_helper(train_images, foot_model, foot_list)
+        task_model = _get_task_model("foot")
+        if task_model is None:
+            return "top", "fallback", {
+                "subtype": "Tshirts",
+                "gender": "Women",
+                "color": "Black",
+                "color_group": 0,
+                "season": "Summer",
+                "usage": "Casual",
+                "path": single_path,
+            }
+        res = single_helper(train_images, task_model, foot_list)
 
     # Add image path
     res.append(single_path)

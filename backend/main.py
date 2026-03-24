@@ -27,6 +27,7 @@ from backend.models import EditItem
 from py.recognition_module import (
     COLOR_GROUP_INDEX,
     MULTI_COLOR,
+    get_model_status,
     map_color_to_group,
     single_classification,
 )
@@ -47,6 +48,11 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/model-status")
+def model_status():
+    return get_model_status()
 
 
 def _parse_color_group(raw) -> int:

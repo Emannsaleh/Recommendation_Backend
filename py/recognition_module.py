@@ -85,11 +85,12 @@ bottom_model = None
 foot_model = None
 _models_loaded = False
 _models_lock = Lock()
+_models_last_error = ""
 
 def _ensure_models_loaded():
     """Load models once per process on first use."""
     global sub_model, top_model, bottom_model, foot_model
-    global _models_loaded
+    global _models_loaded, _models_last_error
 
     if _models_loaded:
         return True
@@ -105,13 +106,34 @@ def _ensure_models_loaded():
                 bottom_model = tf.keras.models.load_model(str(_models_dir / "model_bottom"))
                 foot_model = tf.keras.models.load_model(str(_models_dir / "model_shoes"))
                 _models_loaded = True
+                _models_last_error = ""
                 print("✅ Models loaded successfully")
                 return True
-            print(f"⚠️ Models not found in: {_models_dir}, running in fallback mode")
+            _models_last_error = f"Models not found in: {_models_dir}"
+            print(f"⚠️ {_models_last_error}, running in fallback mode")
             return False
         except Exception as e:
+            _models_last_error = str(e)
             print("❌ Error loading models:", e)
             return False
+
+
+def get_model_status():
+    """
+    Return current model loading state for diagnostics endpoints/logging.
+    """
+    status = {
+        "loaded": bool(_models_loaded and sub_model is not None),
+        "models_dir": str(_models_dir),
+        "exists": {
+            "model_sub": (_models_dir / "model_sub").exists(),
+            "model_top": (_models_dir / "model_top").exists(),
+            "model_bottom": (_models_dir / "model_bottom").exists(),
+            "model_shoes": (_models_dir / "model_shoes").exists(),
+        },
+        "last_error": _models_last_error,
+    }
+    return status
 
 # all output possibilities of the model for subsequent matching
 sub_list = ["bottom","foot","top"]

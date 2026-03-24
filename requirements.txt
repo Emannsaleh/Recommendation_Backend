@@ -1,5 +1,6 @@
 ###### Requirements without Version Specifiers ######
-tensorflow
+tensorflow==2.13.0
+keras==2.13.1
 opencv-python-headless
 matplotlib
 numpy
